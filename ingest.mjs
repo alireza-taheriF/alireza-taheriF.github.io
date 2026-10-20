@@ -1,15 +1,21 @@
 // Telegram -> Claude translation -> posts/<slug>.md
-// Runs in GitHub Actions every few minutes. Needs: TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USER_ID, ANTHROPIC_API_KEY.
+// Runs in GitHub Actions every few minutes. Needs: TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USER_ID.
+// Translation provider (first one available wins, or force with LLM_PROVIDER):
+//   github    free, uses the workflow's own GITHUB_TOKEN (GitHub Models), no extra key
+//   gemini    GEMINI_API_KEY (Google AI Studio free tier)
+//   anthropic ANTHROPIC_API_KEY
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const ALLOWED = (process.env.TELEGRAM_ALLOWED_USER_ID || '').trim();
-const API_KEY = process.env.ANTHROPIC_API_KEY;
-const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
+const env = (k) => (process.env[k] || '').trim();
+const PROVIDER = env('LLM_PROVIDER') || (env('GEMINI_API_KEY') ? 'gemini' : env('ANTHROPIC_API_KEY') ? 'anthropic' : env('GITHUB_TOKEN') ? 'github' : '');
+const MODEL_OVERRIDE = env('LLM_MODEL');
 const SITE = (process.env.SITE_URL || '').replace(/\/$/, '');
 const SETTLE_SECONDS = 90;      // wait until the last message is this old, so split messages arrive together
-const CHUNK_CHARS = 6500;
+// GitHub Models caps each request at 8000 input / 4000 output tokens, so chunks stay small there.
+const CHUNK_CHARS = PROVIDER === 'github' ? 3200 : 6500;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const setOutput = async (k, v) => { if (process.env.GITHUB_OUTPUT) await fs.appendFile(process.env.GITHUB_OUTPUT, `${k}=${v}\n`); };
@@ -24,21 +30,63 @@ async function tg(method, body = {}) {
 }
 const say = (chat_id, text) => tg('sendMessage', { chat_id, text, disable_web_page_preview: true }).catch((e) => console.error(e.message));
 
-async function claude(system, user, max = 8000) {
-  for (let i = 0; i < 4; i++) {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({ model: MODEL, max_tokens: max, system, messages: [{ role: 'user', content: user }] }),
-    });
-    if (r.ok) {
-      const j = await r.json();
-      return j.content.filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+const wait = (r) => { const h = r.headers.get('retry-after'); const n = h ? Number(h) : NaN; return Number.isFinite(n) ? n : null; };
+
+async function post(url, headers, body) {
+  for (let i = 0; i < 5; i++) {
+    const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+    if (r.ok) return r.json();
+    const text = (await r.text()).slice(0, 300);
+    const err = Object.assign(new Error(`${r.status}: ${text}`), { status: r.status });
+    if ([429, 500, 502, 503, 529].includes(r.status)) {
+      const ra = wait(r);
+      if (ra !== null && ra > 90) { err.longWait = true; throw err; }      // daily limit: do not sit and wait
+      await sleep(Math.min(60000, (ra !== null ? ra * 1000 : 2000 * 2 ** i)));
+      continue;
     }
-    if ([429, 500, 502, 503, 529].includes(r.status)) { await sleep(2000 * 2 ** i); continue; }
-    throw new Error(`Claude API ${r.status}: ${(await r.text()).slice(0, 300)}`);
+    throw err;
   }
-  throw new Error('Claude API is unavailable right now');
+  throw new Error('The translation service is busy right now');
+}
+
+async function llmGithub(system, user, max) {
+  const models = [MODEL_OVERRIDE || 'openai/gpt-4.1', 'openai/gpt-4.1-mini'];
+  let last;
+  for (const model of models) {
+    try {
+      const j = await post('https://models.github.ai/inference/chat/completions',
+        { authorization: `Bearer ${env('GITHUB_TOKEN')}`, accept: 'application/json' },
+        { model, max_tokens: Math.min(max, 3500), temperature: 0.3, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] });
+      await sleep(1500);   // stay under the per-minute limit
+      return (j.choices?.[0]?.message?.content || '').trim();
+    } catch (e) {
+      last = e;
+      if (![400, 403, 404, 429].includes(e.status)) throw e;   // try the next (lighter) model
+    }
+  }
+  throw new Error(last?.longWait ? 'The free daily limit of GitHub Models is used up. Try again tomorrow.' : `GitHub Models error ${last?.message}`);
+}
+
+async function llmGemini(system, user, max) {
+  const model = MODEL_OVERRIDE || 'gemini-2.5-flash';
+  const j = await post(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+    { 'x-goog-api-key': env('GEMINI_API_KEY') },
+    { systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { maxOutputTokens: max, temperature: 0.3 } });
+  return (j.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('').trim();
+}
+
+async function llmAnthropic(system, user, max) {
+  const j = await post('https://api.anthropic.com/v1/messages',
+    { 'x-api-key': env('ANTHROPIC_API_KEY'), 'anthropic-version': '2023-06-01' },
+    { model: MODEL_OVERRIDE || 'claude-sonnet-5-5', max_tokens: max, system, messages: [{ role: 'user', content: user }] });
+  return j.content.filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+}
+
+async function llm(system, user, max = 8000) {
+  if (PROVIDER === 'github') return llmGithub(system, user, max);
+  if (PROVIDER === 'gemini') return llmGemini(system, user, max);
+  if (PROVIDER === 'anthropic') return llmAnthropic(system, user, max);
+  throw new Error('No translation provider is configured.');
 }
 
 const TRANSLATE_SYSTEM = `You are a literary translator and editor for a personal blog.
@@ -82,14 +130,14 @@ async function translate(text) {
   const out = [];
   for (let i = 0; i < chunks.length; i++) {
     const ctx = out.length ? `<previous_context>\n${out[out.length - 1].slice(-700)}\n</previous_context>\n` : '';
-    out.push(await claude(TRANSLATE_SYSTEM, `${ctx}<text>\n${chunks[i]}\n</text>`));
+    out.push(await llm(TRANSLATE_SYSTEM, `${ctx}<text>\n${chunks[i]}\n</text>`));
   }
   return out.join('\n\n').replace(/^#\s+.+\n+/, '');
 }
 
 async function metadata(english) {
   const sample = english.length > 5000 ? english.slice(0, 4000) + '\n...\n' + english.slice(-1000) : english;
-  const raw = await claude(META_SYSTEM, sample, 600);
+  const raw = await llm(META_SYSTEM, sample, 600);
   try {
     const j = JSON.parse(raw.replace(/^```(?:json)?\s*|\s*```$/g, ''));
     return { title: String(j.title).slice(0, 90), excerpt: String(j.excerpt).slice(0, 200), tags: (j.tags || []).map((t) => slugify(String(t))).filter(Boolean).slice(0, 4) };
@@ -133,7 +181,17 @@ const HELP = (id) => `Send me your text and I will translate it into English and
 
 Your Telegram ID: ${id}`;
 
+async function selftest() {
+  const sample = 'یادگیری ماشین فقط ریاضی نیست؛ پرسش اصلی این است که یک مدل با آدمی که از آن استفاده می‌کند چه می‌کند.';
+  console.log(`Provider: ${PROVIDER || 'none'}`);
+  const out = await translate(sample + '\n\n' + sample);
+  console.log('Translation:\n' + out);
+  if (!/[a-z]{4,}/i.test(out) || /[\u0600-\u06FF]{6,}/.test(out)) throw new Error('Output does not look like English');
+  console.log('SELFTEST OK');
+}
+
 async function main() {
+  if (process.argv.includes('--selftest')) return selftest();
   await setOutput('changed', 'false');
   if (!TOKEN) { console.log('TELEGRAM_BOT_TOKEN is not set. Nothing to do.'); return; }
 
