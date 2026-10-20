@@ -1,25 +1,31 @@
 # راه‌اندازی ربات بلاگ
 
-ترجمه با **GitHub Models** انجام می‌شه: رایگانه، کارت نمی‌خواد و کلید جدایی لازم نداره (از توکن خودکار GitHub Actions استفاده می‌کنه).
+ترجمه با **Gemini** (پلن رایگان Google AI Studio) انجام می‌شه. کارت بانکی نمی‌خواد.
 
 ## ۱. ساخت ربات تلگرام
 1. در تلگرام به `@BotFather` پیام بده و `/newbot` رو بزن. اسم و یوزرنیم انتخاب کن.
 2. توکنی که می‌ده رو نگه دار.
 
-## ۲. گذاشتن توکن در ریپو
+## ۲. گرفتن کلید Gemini
+1. به aistudio.google.com/apikey برو و با حساب گوگلت وارد شو.
+2. Create API key رو بزن و کلید رو کپی کن.
+3. اگه سایت از ایران باز نشد، فقط برای همین مرحله VPN روشن کن. بعدش لازم نیست، چون ترجمه روی سرور گیتهاب انجام می‌شه نه کامپیوتر تو.
+
+## ۳. گذاشتن کلیدها در ریپو
 Settings ← Secrets and variables ← Actions ← New repository secret
 
 | اسم | مقدار |
 |---|---|
 | `TELEGRAM_BOT_TOKEN` | توکن BotFather |
+| `GEMINI_API_KEY` | کلید Gemini |
 
-## ۳. گرفتن آیدی تلگرام
+## ۴. تست ترجمه
+Actions ← «Blog bot and site» ← Run workflow ← تیک `selftest` رو بزن. در لاگ مرحله‌ی «Translation self-test» باید `SELFTEST OK` ببینی و اسم مدلی که جواب داده رو.
+
+## ۵. گرفتن آیدی تلگرام
 1. به رباتت یه پیام بفرست (مثلاً `/start`).
-2. تب Actions ← «Blog bot and site» ← Run workflow رو بزن.
+2. Actions ← «Blog bot and site» ← Run workflow (بدون تیک) رو بزن.
 3. ربات آیدی عددیت رو برات می‌فرسته. اون رو به‌عنوان secret با اسم `TELEGRAM_ALLOWED_USER_ID` بذار.
-
-## تست ترجمه (اختیاری)
-Actions ← «Blog bot and site» ← Run workflow ← تیک `selftest` رو بزن. در لاگ مرحله‌ی «Translation self-test» باید `SELFTEST OK` ببینی.
 
 ## استفاده
 - متن بلندت رو به ربات بفرست (چند پیام پشت‌سرهم یا فایل `.txt` / `.md`).
@@ -27,15 +33,14 @@ Actions ← «Blog bot and site» ← Run workflow ← تیک `selftest` رو ب
 - برای چند پست جدا، بین‌شون یه خط فقط با `///` بذار.
 - `/cancel` متن‌های پست‌نشده رو دور می‌ریزه.
 
-## محدودیت‌های پلن رایگان
-- مدل اصلی `openai/gpt-4.1` حدود ۵۰ درخواست در روز داره. وقتی تموم بشه، ربات خودکار به `openai/gpt-4.1-mini` می‌ره (حدود ۱۵۰ درخواست در روز).
-- هر ۳۲۰۰ کاراکتر متن یک درخواست حساب می‌شه، پس یک پست بلند چند درخواست مصرف می‌کنه.
-- اگه سقف روزانه تموم شد، ربات پیام می‌ده و فردا دوباره امتحان کن.
+## محدودیت‌ها
+- پلن رایگان Gemini سقف درخواست در دقیقه و در روز داره. اگه یه مدل تموم بشه، ربات خودکار مدل بعدی رو امتحان می‌کنه. اگه همه تموم شدن، پیام می‌ده و فردا دوباره بفرست.
+- هر ۵۰۰۰ کاراکتر متن یک درخواست حساب می‌شه.
 
 ## ارائه‌دهنده‌ی دیگر (اختیاری)
-- **Gemini:** از aistudio.google.com کلید بگیر و با اسم `GEMINI_API_KEY` به‌عنوان secret بذار. اگه این secret باشه، ربات از Gemini استفاده می‌کنه.
-- **Claude:** secret با اسم `ANTHROPIC_API_KEY`.
-- برای عوض کردن مدل یا اجبار یک ارائه‌دهنده: Settings ← Secrets and variables ← Actions ← Variables، متغیر `LLM_PROVIDER` (`github` / `gemini` / `anthropic`) و `LLM_MODEL`.
+- **OpenRouter:** از openrouter.ai کلید بگیر و با اسم `OPENROUTER_API_KEY` به‌عنوان secret بذار. مدل‌های رایگانش روزی حدود ۵۰ درخواست دارن و لیستشون زیاد عوض می‌شه. اگه `GEMINI_API_KEY` هم باشه، Gemini اولویت داره.
+- **Claude:** secret با اسم `ANTHROPIC_API_KEY` (پولی).
+- برای اجبار یک ارائه‌دهنده یا مدل: Settings ← Secrets and variables ← Actions ← Variables، متغیر `LLM_PROVIDER` (`gemini` / `openrouter` / `anthropic`) و `LLM_MODEL`.
 
 ## نکته‌ها
 - پست‌ها در پوشه‌ی `posts/` ریپو ذخیره می‌شن و می‌تونی ویرایش یا حذفشون کنی.

@@ -1,21 +1,20 @@
 // Telegram -> Claude translation -> posts/<slug>.md
 // Runs in GitHub Actions every few minutes. Needs: TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USER_ID.
-// Translation provider (first one available wins, or force with LLM_PROVIDER):
-//   github    free, uses the workflow's own GITHUB_TOKEN (GitHub Models), no extra key
-//   gemini    GEMINI_API_KEY (Google AI Studio free tier)
-//   anthropic ANTHROPIC_API_KEY
+// Translation provider (first one with a key wins, or force with LLM_PROVIDER):
+//   gemini      GEMINI_API_KEY      free tier of Google AI Studio (recommended)
+//   openrouter  OPENROUTER_API_KEY  free ":free" models, about 50 requests a day
+//   anthropic   ANTHROPIC_API_KEY   paid
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const ALLOWED = (process.env.TELEGRAM_ALLOWED_USER_ID || '').trim();
 const env = (k) => (process.env[k] || '').trim();
-const PROVIDER = env('LLM_PROVIDER') || (env('GEMINI_API_KEY') ? 'gemini' : env('ANTHROPIC_API_KEY') ? 'anthropic' : env('GITHUB_TOKEN') ? 'github' : '');
+const PROVIDER = env('LLM_PROVIDER') || (env('GEMINI_API_KEY') ? 'gemini' : env('OPENROUTER_API_KEY') ? 'openrouter' : env('ANTHROPIC_API_KEY') ? 'anthropic' : '');
 const MODEL_OVERRIDE = env('LLM_MODEL');
 const SITE = (process.env.SITE_URL || '').replace(/\/$/, '');
 const SETTLE_SECONDS = 90;      // wait until the last message is this old, so split messages arrive together
-// GitHub Models caps each request at 8000 input / 4000 output tokens, so chunks stay small there.
-const CHUNK_CHARS = PROVIDER === 'github' ? 3200 : 6500;
+const CHUNK_CHARS = 5000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const setOutput = async (k, v) => { if (process.env.GITHUB_OUTPUT) await fs.appendFile(process.env.GITHUB_OUTPUT, `${k}=${v}\n`); };
@@ -30,49 +29,63 @@ async function tg(method, body = {}) {
 }
 const say = (chat_id, text) => tg('sendMessage', { chat_id, text, disable_web_page_preview: true }).catch((e) => console.error(e.message));
 
-const wait = (r) => { const h = r.headers.get('retry-after'); const n = h ? Number(h) : NaN; return Number.isFinite(n) ? n : null; };
+const retryAfter = (r) => { const h = r.headers.get('retry-after'); const n = h ? Number(h) : NaN; return Number.isFinite(n) ? n : null; };
 
-async function post(url, headers, body) {
-  for (let i = 0; i < 5; i++) {
+async function post(url, headers, body, attempts = 4) {
+  let err;
+  for (let i = 0; i < attempts; i++) {
     const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
-    if (r.ok) return r.json();
-    const text = (await r.text()).slice(0, 300);
-    const err = Object.assign(new Error(`${r.status}: ${text}`), { status: r.status });
+    if (r.ok) {
+      const t = await r.text();
+      try { return JSON.parse(t); } catch { throw Object.assign(new Error(`Unexpected reply: ${t.slice(0, 120)}`), { status: 502 }); }
+    }
+    err = Object.assign(new Error(`${r.status}: ${(await r.text()).slice(0, 300)}`), { status: r.status });
     if ([429, 500, 502, 503, 529].includes(r.status)) {
-      const ra = wait(r);
-      if (ra !== null && ra > 90) { err.longWait = true; throw err; }      // daily limit: do not sit and wait
-      await sleep(Math.min(60000, (ra !== null ? ra * 1000 : 2000 * 2 ** i)));
+      const ra = retryAfter(r);
+      if (ra !== null && ra > 90) throw err;                 // daily limit: do not sit and wait
+      await sleep(Math.min(45000, ra !== null ? ra * 1000 : 3000 * 2 ** i));
       continue;
     }
     throw err;
   }
-  throw new Error('The translation service is busy right now');
+  throw err;
 }
 
-async function llmGithub(system, user, max) {
-  const models = [MODEL_OVERRIDE || 'openai/gpt-4.1', 'openai/gpt-4.1-mini'];
+// Tries each model in turn; a model that is unavailable or out of quota hands over to the next.
+async function chain(models, call) {
   let last;
-  for (const model of models) {
-    try {
-      const j = await post('https://models.github.ai/inference/chat/completions',
-        { authorization: `Bearer ${env('GITHUB_TOKEN')}`, accept: 'application/json' },
-        { model, max_tokens: Math.min(max, 3500), temperature: 0.3, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] });
-      await sleep(1500);   // stay under the per-minute limit
-      return (j.choices?.[0]?.message?.content || '').trim();
-    } catch (e) {
-      last = e;
-      if (![400, 403, 404, 429].includes(e.status)) throw e;   // try the next (lighter) model
+  for (const m of models) {
+    try { const out = await call(m); console.log(`Model used: ${m}`); return out; } catch (e) {
+      last = e; console.log(`Model ${m} failed: ${String(e.message).slice(0, 160)}`);
+      if (![400, 403, 404, 429, 500, 502, 503].includes(e.status)) throw e;
     }
   }
-  throw new Error(last?.longWait ? 'The free daily limit of GitHub Models is used up. Try again tomorrow.' : `GitHub Models error ${last?.message}`);
+  const quota = last?.status === 429;
+  throw new Error(quota ? 'The free daily limit is used up. Try again tomorrow.' : `Translation failed: ${last?.message}`);
 }
 
 async function llmGemini(system, user, max) {
-  const model = MODEL_OVERRIDE || 'gemini-2.5-flash';
-  const j = await post(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-    { 'x-goog-api-key': env('GEMINI_API_KEY') },
-    { systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { maxOutputTokens: max, temperature: 0.3 } });
-  return (j.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('').trim();
+  const models = MODEL_OVERRIDE ? [MODEL_OVERRIDE] : ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
+  return chain(models, async (model) => {
+    const j = await post(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      { 'x-goog-api-key': env('GEMINI_API_KEY') },
+      { systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { maxOutputTokens: max, temperature: 0.3 } }, 2);
+    const text = (j.candidates?.[0]?.content?.parts || []).filter((p) => !p.thought).map((p) => p.text || '').join('').trim();
+    if (!text) throw Object.assign(new Error('Empty reply'), { status: 502 });
+    return text;
+  });
+}
+
+async function llmOpenRouter(system, user, max) {
+  const models = MODEL_OVERRIDE ? [MODEL_OVERRIDE] : ['minimax/minimax-m3.1-flash:free', 'nvidia/nemotron-3.5-super-vl:free'];
+  return chain(models, async (model) => {
+    const j = await post('https://openrouter.ai/api/v1/chat/completions',
+      { authorization: `Bearer ${env('OPENROUTER_API_KEY')}` },
+      { model, max_tokens: Math.min(max, 6000), temperature: 0.3, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }, 2);
+    const text = (j.choices?.[0]?.message?.content || '').trim();
+    if (!text) throw Object.assign(new Error('Empty reply'), { status: 502 });
+    return text;
+  });
 }
 
 async function llmAnthropic(system, user, max) {
@@ -83,7 +96,7 @@ async function llmAnthropic(system, user, max) {
 }
 
 async function llm(system, user, max = 8000) {
-  if (PROVIDER === 'github') return llmGithub(system, user, max);
+  if (PROVIDER === 'openrouter') return llmOpenRouter(system, user, max);
   if (PROVIDER === 'gemini') return llmGemini(system, user, max);
   if (PROVIDER === 'anthropic') return llmAnthropic(system, user, max);
   throw new Error('No translation provider is configured.');
