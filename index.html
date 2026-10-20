@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Alireza Taheri</title>
+<meta name="description" content="Alireza Taheri is an AI engineer with a background in psychology. Projects in deep learning, recommender systems, computer vision and NLP, plus a blog.">
+<meta property="og:title" content="Alireza Taheri">
+<meta property="og:description" content="AI engineer. Psychology first, then machine learning.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#F1F2F6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0C0D12" media="(prefers-color-scheme: dark)">
+<link rel="alternate" type="application/rss+xml" title="Alireza Taheri" href="/feed.xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=DM+Mono:wght@400;500&family=Hanken+Grotesk:wght@400;500;600&display=swap">
+<script src="/theme-init.js"></script>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="bar">
+    <a class="mono" href="/">A. Taheri</a>
+    <nav class="mono" aria-label="Sections">
+      <a href="#work">Work</a>
+      <a href="#path">Path</a>
+      <a href="/blog/">Writing</a>
+      <a href="#contact">Contact</a>
+      <button class="theme-btn mono" id="themeBtn" type="button" aria-label="Switch colour theme">Theme</button>
+    </nav>
+  </header>
+
+  <main>
+    <div class="hero">
+      <div>
+        <p class="status mono"><i></i> Open to collaborations</p>
+        <h1>Alireza <em>Taheri</em></h1>
+        <p class="lede">I studied minds first. Now I build systems that learn.</p>
+        <p class="sub">AI engineer with a BSc in Psychology and a Master's in Artificial Intelligence &amp; Robotics. I work between data, backend systems and ideas, aiming for machine learning that is actually useful and quietly intuitive.</p>
+        <div class="cta">
+          <a class="btn solid" href="#work">See the work</a>
+          <a class="btn" href="/blog/">Read the blog</a>
+          <a class="btn" href="https://github.com/alireza-taheriF" target="_blank" rel="noopener">GitHub ↗</a>
+          <a class="btn" href="https://www.linkedin.com/in/alireza-taheri-a34179164/" target="_blank" rel="noopener">LinkedIn ↗</a>
+        </div>
+      </div>
+
+      <figure class="plate">
+        <div class="plate-head mono"><span>Plate I</span><span>Ink → graph</span></div>
+        <canvas id="blot" role="img" aria-label="A symmetrical inkblot made of overlapping shapes, with a network of nodes and lines drawn across it. It drifts slowly."></canvas>
+        <div class="plate-foot mono"><span>Psychology met ML</span><button class="again mono" id="again" type="button">Show me another</button></div>
+      </figure>
+    </div>
+
+    <section id="about">
+      <div class="sec">
+        <h2 class="mono">About</h2>
+        <div>
+          <p class="big">I care about what a model does to the person using it. <span>That question came with me from psychology, and it shapes how I design, evaluate and ship machine learning.</span></p>
+          <div class="two">
+            <div>
+              <span class="mono">Lens one</span>
+              <h3>Human-centred</h3>
+              <p>Emotion recognition, stress detection and decision support all start from how people behave, not from what is easiest to model.</p>
+            </div>
+            <div>
+              <span class="mono">Lens two</span>
+              <h3>System-minded</h3>
+              <p>Backend engineering pays my bills and keeps my ML honest. A model that cannot be deployed, monitored and explained is a notebook.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="work">
+      <div class="sec">
+        <h2 class="mono">Selected work</h2>
+        <div>
+          <ul class="rows">
+            <li class="row"><a href="https://github.com/alireza-taheriF/cement-kiln-copilot" target="_blank" rel="noopener">
+              <div>
+                <h3>Cement Kiln Copilot</h3>
+                <p>Decision support for cement kiln optimisation. It is open-loop by design: the system advises and the operators decide.</p>
+                <div class="tags mono"><span class="tag">Python</span><span class="tag">Industrial AI</span><span class="tag">Decision support</span></div>
+              </div>
+              <div class="meta mono"><span>Industry</span><span class="arrow">↗</span></div>
+            </a></li>
+            <li class="row"><a href="https://github.com/alireza-taheriF/clcrec-cold-start" target="_blank" rel="noopener">
+              <div>
+                <h3>CLCRec Cold-Start</h3>
+                <p>Contrastive learning for cold-start recommendation on MovieLens-1M, written in pure NumPy with no deep learning framework.</p>
+                <div class="tags mono"><span class="tag">Python</span><span class="tag">NumPy</span><span class="tag">Recommenders</span></div>
+              </div>
+              <div class="meta mono"><span>Research</span><span class="arrow">↗</span></div>
+            </a></li>
+            <li class="row"><a href="https://github.com/alireza-taheriF/Emotion-Detection" target="_blank" rel="noopener">
+              <div>
+                <h3>Emotion Detection</h3>
+                <p>Real-time facial emotion recognition with a CNN trained on FER-2013.</p>
+                <div class="tags mono"><span class="tag">Python</span><span class="tag">CNN</span><span class="tag">Computer vision</span></div>
+              </div>
+              <div class="meta mono"><span>2 ★</span><span class="arrow">↗</span></div>
+            </a></li>
+            <li class="row"><a href="https://github.com/alireza-taheriF/stress-detector-chatbot" target="_blank" rel="noopener">
+              <div>
+                <h3>Stress Detector Chatbot</h3>
+                <p>A chatbot that reads stress in text, built on DistilBERT with a Streamlit interface.</p>
+                <div class="tags mono"><span class="tag">Python</span><span class="tag">DistilBERT</span><span class="tag">NLP</span><span class="tag">Streamlit</span></div>
+              </div>
+              <div class="meta mono"><span>1 ★</span><span class="arrow">↗</span></div>
+            </a></li>
+          </ul>
+
+          <div class="now">
+            <h2 class="mono">In progress</h2>
+            <div class="now-item">
+              <div><b>Master's thesis</b><span class="d">Mitigating emergent misalignment in LLM fine-tuning.</span></div>
+              <span class="mono">Research</span>
+            </div>
+            <div class="now-item">
+              <div><b>100 Days of Deep Learning Papers</b><span class="d">One paper a day, reimplemented from scratch.</span></div>
+              <span class="mono">Ongoing</span>
+            </div>
+            <div class="now-item">
+              <div><b>Persian handwritten exam OCR</b><span class="d">A local system that digitises handwritten exam papers.</span></div>
+              <span class="mono">Building</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="writing">
+      <div class="sec">
+        <h2 class="mono">Writing</h2>
+        <div>
+          <p class="empty" id="latestEmpty">The first posts are on their way. Essays and notes, written in Persian and translated into English.</p>
+          <ul class="rows" id="latest" hidden></ul>
+          <p class="more mono" id="latestMore" hidden><a href="/blog/">All posts →</a></p>
+        </div>
+      </div>
+    </section>
+
+    <section id="path">
+      <div class="sec">
+        <h2 class="mono">Path</h2>
+        <div>
+          <ul class="path">
+            <li><span class="role">Backend engineer</span><span class="where">Iranian knowledge-based company</span></li>
+            <li><span class="role">R&amp;D engineer, remote</span><span class="where">International company</span></li>
+            <li><span class="role">Freelance AI engineer</span><span class="where">AI-assisted development, shipping for clients</span></li>
+            <li><span class="role">Python instructor</span><span class="where">Radman Academy, intermediate course</span></li>
+            <li><span class="role">MSc, AI &amp; Robotics</span><span class="where">Shahrood, Iran</span></li>
+            <li><span class="role">BSc, Psychology</span><span class="where">The first lens</span></li>
+          </ul>
+          <div class="skills mono" aria-label="Skills">
+            <span class="tag">Deep learning</span><span class="tag">LLM fine-tuning</span><span class="tag">Computer vision</span><span class="tag">NLP</span><span class="tag">Recommender systems</span><span class="tag">Python</span><span class="tag">Backend systems</span><span class="tag">AI agents</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="contact" class="contact">
+      <div class="sec">
+        <h2 class="mono">Contact</h2>
+        <div>
+          <h2 class="big">Applied ML with real-world relevance, vision-based AI, or a hard idea worth the effort? Write to me.</h2>
+          <div class="mail">
+            <code id="mailText">alirezataherifakhr@gmail.com</code>
+            <button class="copy" id="copyBtn" type="button">Copy</button>
+          </div>
+          <div class="links">
+            <a href="https://github.com/alireza-taheriF" target="_blank" rel="noopener">GitHub</a>
+            <a href="https://www.linkedin.com/in/alireza-taheri-a34179164/" target="_blank" rel="noopener">LinkedIn</a>
+            <a href="https://x.com/alir3za_taherii" target="_blank" rel="noopener">X</a>
+            <a href="/feed.xml">RSS</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <q>Good systems feel simple. The complexity is in the thinking, not the experience.</q>
+    <span class="mono">Alireza Taheri</span>
+  </footer>
+</div>
+<script src="/site.js"></script>
+</body>
+</html>

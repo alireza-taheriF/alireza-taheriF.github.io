@@ -1,0 +1,12 @@
+{
+  "name": "alireza-taheri-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "ingest": "node ingest.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
